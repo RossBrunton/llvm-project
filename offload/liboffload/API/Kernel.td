@@ -10,6 +10,27 @@
 //
 //===----------------------------------------------------------------------===//
 
+def : FptrTypedef {
+  let name = "ol_kernel_max_group_size_cb_t";
+  let desc = "Function for ol_kernel_t::";
+  let params = [
+    Param<"ol_device_handle_t", "Device", "the device used to build the kernel", PARAM_IN>,
+    Param<"ol_kernel_handle_t", "Kernel", "the kernel to lookup", PARAM_IN>,
+    Param<"uint64_t", "DynamicMemory", "Dynamic shared memory required", PARAM_IN>,
+    Param<"uint64_t *", "MaxGroups", "Maximum number of work groups", PARAM_OUT>,
+  ];
+  let return = "ol_result_t";
+}
+
+def : Struct {
+  let name = "ol_kernel_t";
+  let desc = "A kernel object";
+  let members = [
+    StructMember<"void *", "kernel", "Internal kernel information used by liboffload">,
+    StructMember<"ol_kernel_max_group_size_cb_t", "maxGroupSize", ".">,
+  ];
+}
+
 def : Function {
     let name = "olGetKernel";
     let desc = "Get a kernel from the function identified by `KernelName` in the given program.";

@@ -80,7 +80,7 @@ def : Handle {
 def : Typedef {
   let name = "ol_kernel_handle_t";
   let desc = "Handle of kernel object";
-  let value = "void *";
+  let value = "struct ol_kernel_t *";
 }
 
 def ErrorCode : Enum {

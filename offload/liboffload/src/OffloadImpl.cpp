@@ -557,6 +557,39 @@ Error olDestroyProgram_impl(ol_program_handle_t Program) {
   return olDestroy(Program);
 }
 
+inline GenericKernelTy *getPluginKernel(ol_kernel_handle_t OlKernel) {
+  return reinterpret_cast<GenericKernelTy *>(OlKernel->kernel);
+}
+
+namespace {
+Error kernelMaxGroupSize_impl(ol_device_handle_t Device,
+                              ol_kernel_handle_t Kernel,
+                              uint64_t DynamicMemSize, uint64_t *GroupSize) {
+  if (!Device || !Kernel)
+    return Plugin::error(ErrorCode::INVALID_NULL_HANDLE, "Handle is null");
+  if (!GroupSize)
+    return Plugin::error(ErrorCode::INVALID_NULL_POINTER, "Output is null");
+
+  auto *KernelImpl = getPluginKernel(Kernel);
+
+  auto Res = KernelImpl->maxGroupSize(*Device->Device, DynamicMemSize);
+  if (auto Err = Res.takeError())
+    return Err;
+
+  *GroupSize = *Res;
+
+  return Error::success();
+}
+
+ol_result_t kernelMaxGroupSize(ol_device_handle_t Device,
+                               ol_kernel_handle_t Kernel,
+
+                               uint64_t DynamicMemSize, uint64_t *GroupSize) {
+  return llvmErrorToOffloadError(
+      kernelMaxGroupSize_impl(Device, Kernel, DynamicMemSize, GroupSize));
+}
+} // namespace
+
 Error olGetKernel_impl(ol_program_handle_t Program, const char *KernelName,
                        ol_kernel_handle_t *Kernel) {
 
@@ -568,7 +601,7 @@ Error olGetKernel_impl(ol_program_handle_t Program, const char *KernelName,
   if (auto Err = KernelImpl->init(Device, *Program->Image))
     return Err;
 
-  *Kernel = &*KernelImpl;
+  *Kernel = new ol_kernel_t{&*KernelImpl, &kernelMaxGroupSize};
 
   return Error::success();
 }
@@ -603,7 +636,7 @@ Error olLaunchKernel_impl(ol_queue_handle_t Queue, ol_device_handle_t Device,
   // Don't do anything with pointer indirection; use arg data as-is
   LaunchArgs.Flags.IsCUDA = true;
 
-  auto *KernelImpl = reinterpret_cast<GenericKernelTy *>(Kernel);
+  auto *KernelImpl = getPluginKernel(Kernel);
   auto Err = KernelImpl->launch(*DeviceImpl, LaunchArgs.ArgPtrs, nullptr,
                                 LaunchArgs, AsyncInfoWrapper);
 
