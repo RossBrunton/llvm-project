@@ -2032,7 +2032,8 @@ private:
 
 /// Class implementing the AMDGPU device functionalities which derives from the
 /// generic device class.
-struct AMDGPUDeviceTy : public GenericDeviceTy, AMDGenericDeviceTy {
+struct alignas(8) alignas(void *) AMDGPUDeviceTy : public GenericDeviceTy,
+                                                   AMDGenericDeviceTy {
   // Create an AMDGPU device with a device id and default AMDGPU grid values.
   AMDGPUDeviceTy(GenericPluginTy &Plugin, int32_t DeviceId, int32_t NumDevices,
                  AMDHostDeviceTy &HostDevice, hsa_agent_t Agent)
@@ -3561,6 +3562,26 @@ struct AMDGPUPluginTy final : public GenericPluginTy {
     return KernelAgents;
   }
 
+  Expected<MemoryInfoTy> get_memory_info(const void *TgtPtr) override {
+    hsa_amd_pointer_info_t Info;
+    if (auto Err = Plugin::check(
+            hsa_amd_pointer_info(TgtPtr, &Info, nullptr, nullptr, nullptr),
+            "error in hsa_amd_pointer_info: %s"))
+      return Err;
+
+    // The pointer info struct contains an "agent" field, but that doesn't
+    // necessarily map to the device that created it
+    MemoryInfoTy ToReturn;
+    ToReturn.Base = Info.agentBaseAddress;
+    ToReturn.Size = Info.size;
+    ToReturn.Type = static_cast<TargetAllocTy>(
+        reinterpret_cast<uintptr_t>(Info.userData) & 0b1111);
+    ToReturn.Device = reinterpret_cast<GenericDeviceTy *>(
+        reinterpret_cast<uintptr_t>(Info.userData) & ~0b1111);
+
+    return ToReturn;
+  }
+
 private:
   /// Event handler that will be called by ROCr if an event is detected.
   static hsa_status_t eventHandler(const hsa_amd_event_t *Event,
@@ -3882,6 +3903,14 @@ void *AMDGPUDeviceTy::allocate(size_t Size, void *, TargetAllocTy Kind) {
       REPORT("%s\n", toString(std::move(Err)).data());
       return nullptr;
     }
+
+    uintptr_t UserData =
+        reinterpret_cast<uintptr_t>(this) | static_cast<uintptr_t>(Kind);
+    if (auto Err =
+            Plugin::check(hsa_amd_pointer_info_set_userdata(
+                              Alloc, reinterpret_cast<void *>(UserData)),
+                          "error in hsa_amd_pointer_info_set_userdata: %s"))
+      REPORT("%s\n", toString(std::move(Err)).data());
   }
 
   return Alloc;
