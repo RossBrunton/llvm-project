@@ -633,6 +633,7 @@ Error olMemAlloc_impl(ol_device_handle_t Device, ol_alloc_type_t Type,
 }
 
 Error olMemFree_impl(void *Address) {
+  auto Platform = &OffloadContext::get().Platforms[0];
   ol_device_handle_t Device;
   ol_alloc_type_t Type;
   {
@@ -646,6 +647,18 @@ Error olMemFree_impl(void *Address) {
     Type = AllocInfo.Type;
     OffloadContext::get().AllocInfoMap.erase(Address);
   }
+
+  auto MemInfo = Platform->Plugin->get_memory_info(Address);
+  if (auto Err = MemInfo.takeError())
+    return Err;
+  llvm::outs() << "<< MEM INFO >>\n";
+  llvm::outs() << "Base: " << MemInfo->Base << "\n";
+  llvm::outs() << "Size: " << MemInfo->Size << "\n";
+  llvm::outs() << "Type: " << MemInfo->Type << "\n";
+  llvm::outs() << "Device: " << MemInfo->Device << "\n\n";
+
+  assert(MemInfo->Device == Device->Device);
+  assert(MemInfo->Type == convertOlToPluginAllocTy(Type));
 
   if (auto Res =
           Device->Device->dataDelete(Address, convertOlToPluginAllocTy(Type)))
