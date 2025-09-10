@@ -313,6 +313,7 @@ if(LLVM_INCLUDE_TESTS)
   get_property(LLVM_RUNTIMES_LIT_DEPENDS GLOBAL PROPERTY LLVM_RUNTIMES_LIT_DEPENDS)
   if(LLVM_RUNTIMES_LIT_DEPENDS)
     # add_dependencies complains if called with no dependencies
+    message("Lit Depends: ${LLVM_RUNTIMES_LIT_DEPENDS}")
     add_dependencies(runtimes-test-depends ${LLVM_RUNTIMES_LIT_DEPENDS})
   endif()
   # Add a global check rule now that all subdirectories have been traversed
